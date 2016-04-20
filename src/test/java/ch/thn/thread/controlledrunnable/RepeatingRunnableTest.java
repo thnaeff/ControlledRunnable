@@ -1,3 +1,4 @@
+package ch.thn.thread.controlledrunnable;
 import org.junit.Test;
 
 import ch.thn.thread.controlledrunnable.ControlledRunnableEvent;
