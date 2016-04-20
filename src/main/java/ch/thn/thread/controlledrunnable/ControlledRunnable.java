@@ -1,5 +1,5 @@
 /**
- *    Copyright 2013 Thomas Naeff (github.com/thnaeff)
+ *    Copyright 2016 Thomas Naeff (github.com/thnaeff)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package ch.thn.thread.controlledrunnable;
 
 import java.util.ArrayList;
-import java.util.EventObject;
 
 /**
  * This abstract class contains the functionality for pausing, resetting and stopping
@@ -26,11 +25,12 @@ import java.util.EventObject;
  * {@link #reset()} and {@link #stop()}/{@link #stop(boolean)}. {@link ControlledRunnable}
  * then offers several methods which can be used in the program flow to act on the different
  * states. This class also provides the possibility to register {@link ControlledRunnableListener}s
- * which are notified of state changes.<br />
+ * which are notified of state changes. The listeners are notified when a state change has been requested 
+ * and once the state has been reached.<br />
  * <br />
  * Is not possible for {@link ControlledRunnable} to know during your
  * own program flow implementation when it is a good time to stop, reset or pause
- * the execution. Therefore, these methods only set an internal state which
+ * the execution. Therefore, the pause/reset/stop methods only set an internal state which
  * needs to be checked in your runnable class in order to get the desired behavior.
  * This means that methods like {@link #runStart()}, {@link #runEnd()},
  * {@link #runPause(boolean, boolean)}, {@link #isResetRequested()}, {@link #isPauseRequested()}
@@ -68,12 +68,12 @@ import java.util.EventObject;
  *		//{@link #controlledWait()}
  *		//{@link #controlledWait(long)}
  *		//{@link #isPauseRequested()}
- *		//Any of the {@link #pause()} methods
+ *		//Any of the {@link #pause()} methods to request a pause
  *		//
- *		//Hint: Instead of using wait() on a object, use one of the controlledPause
- *		//methods if you want it to react to any pause/reset/stop etc. calls. The
- *		//controlledPause methods use the wait() internally but exit the wait if
- *		//for example reset() is called.
+ *		//Hint: Instead of using wait() on a object directly, use one of the controlledWait
+ *		//methods if you want the implementation to react to any pause/reset/stop etc. calls. The
+ *		//controlledWait methods use the wait() internally but exit the wait if
+ *		//reset() or stop() is called.
  *
  *	}
  *
@@ -115,11 +115,17 @@ public abstract class ControlledRunnable implements Runnable {
 	private final Object WAITFORSYNC = new Object();
 
 	/**
-	 * Creates a new {@link ControlledRunnable} class.
+	 * Creates a new {@link ControlledRunnable} class. The "-Implemented" parameters 
+	 * give information about the possibilities depending on how the runnable is implemented.
+	 * For example, if <code>pausingImplemented</code> is set to <code>true</code>, calling 
+	 * {@link #pause(boolean)} on the runnable will actually make the process wait. If 
+	 * <code>pausingImplemented</code> is given as <code>false</code>, calling {@link #pause(boolean)} 
+	 * would cause an {@link UnsupportedOperationException}.
 	 * 
-	 * @param pausingImplemented The pausing flag has to be set to define if the
+	 * 
+	 * @param pausingImplemented The pausing flag has to be provided to indicate if the
 	 * implementation supports pausing or not.
-	 * @param resetImplemented The reset flag has to be set to define if the
+	 * @param resetImplemented The reset flag has to be provided to indicate if the
 	 * implementation supports resetting or not.
 	 */
 	protected ControlledRunnable(boolean pausingImplemented, boolean resetImplemented) {
@@ -169,7 +175,7 @@ public abstract class ControlledRunnable implements Runnable {
 
 
 	/**
-	 * Returns the flag which indicates if this runnable is currently running or not
+	 * Returns a flag which indicates if this runnable is currently running or not
 	 * 
 	 * @return
 	 */
@@ -180,19 +186,22 @@ public abstract class ControlledRunnable implements Runnable {
 	// ========================================================================
 
 	/**
+	 * Pauses the runnable for the given number of milliseconds. This method is non blocking and 
+	 * does not wait for the runnable to reach the paused state.
 	 * 
-	 * 
-	 * @param timeout
+	 * @param timeout The number of milliseconds to wait
 	 */
 	public void pause(long timeout) {
 		pause(timeout, false);
 	}
 
 	/**
+	 * Pauses the runnable for the given number of milliseconds. The <code>wait</code> parameter 
+	 * can be used to choose if the method should block until the runnable reached the pause state.
 	 * 
-	 * 
-	 * @param timeout
-	 * @param wait
+	 * @param timeout The number of milliseconds to wait
+	 * @param wait Wait for the runnable to reach the pause state (<code>true</code>). Do not wait, request 
+	 * the pause and continue (<code>false</code>).
 	 */
 	public void pause(long timeout, boolean wait) {
 		this.timeout = timeout;
@@ -203,7 +212,7 @@ public abstract class ControlledRunnable implements Runnable {
 	 * Requests the runnable to pause (pause=<code>true</code>) or to exit from
 	 * its paused state (pause=<code>false</code>).
 	 * 
-	 * @param pause
+	 * @param pause Indicator if runnable should be paused (<code>true</code>) or un-paused (<code>false</code>).
 	 */
 	public void pause(boolean pause) {
 		if (!pausingImplemented) {
@@ -220,8 +229,9 @@ public abstract class ControlledRunnable implements Runnable {
 	 * its paused state (pause=<code>false</code>). With flag to wait for runnable
 	 * to reach the paused state.
 	 * 
-	 * @param pause
-	 * @param wait
+	 * @param pause Indicator if runnable should be paused (<code>true</code>) or un-paused (<code>false</code>).
+	 * @param wait Wait for the runnable to reach the pause state (<code>true</code>). Do not wait, request 
+	 * the pause and continue (<code>false</code>).
 	 */
 	public void pause(boolean pause, boolean wait) {
 		if (!pausingImplemented) {
@@ -237,8 +247,9 @@ public abstract class ControlledRunnable implements Runnable {
 	 * Requests the runnable to pause (pause=<code>true</code>) or to exit from
 	 * its paused state (pause=<code>false</code>).
 	 * 
-	 * @param pause
-	 * @param wait
+	 * @param pause Indicator if runnable should be paused (<code>true</code>) or un-paused (<code>false</code>).
+	 * @param wait Wait for the runnable to reach the pause state (<code>true</code>). Do not wait, request 
+	 * the pause and continue (<code>false</code>).
 	 */
 	private void pauseInternal(boolean pause, boolean wait) {
 		if (stopped) {
@@ -250,7 +261,7 @@ public abstract class ControlledRunnable implements Runnable {
 
 		if (pauseRequested) {
 			fireControlledRunnableListener(
-					new ControlledRunnableEvent(this, ControlledRunnableEvent.STATETYPE.PAUSED));
+					new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.PAUSE));
 		}
 
 		if (!pause && paused) {
@@ -260,9 +271,11 @@ public abstract class ControlledRunnable implements Runnable {
 			}
 		}
 
+		//Wait for the runnable to reach the paused state
 		if (wait) {
+			//Only synchronize if really necessary
 			if (pause && !paused || !pause && paused) {
-				//Only synchronize if really necessary
+				
 				synchronized (WAITFORSYNC) {
 					try {
 						//Wait for entering or exiting pause state
@@ -271,6 +284,7 @@ public abstract class ControlledRunnable implements Runnable {
 						}
 					} catch (InterruptedException e) {}
 				}
+				
 			}
 
 		}
@@ -299,14 +313,15 @@ public abstract class ControlledRunnable implements Runnable {
 	 * is in the pausing state. When this method exits it could be because pausing
 	 * is done or stopping or reset has been requested. Therefore, after calling
 	 * this method there should be a check in the program flow if stopping or reset
-	 * (if implemented) has been requested.
+	 * (if implemented) has been requested in order to figure out the right cause of the 
+	 * end of the pause.
 	 * 
 	 * @param exitAtReset If <code>true</code>, this pause is ended when {@link #reset()}
 	 * is called. If <code>false</code>, this method keeps pausing even though
 	 * the runnable is in the reset state (it ignores {@link #reset()} and
 	 * the reset state is cleared automatically).
 	 * @param controlledWait Waits even though a pause is not requested. This is
-	 * to simulate a wait().
+	 * to simulate a wait(), but to be able to react to reset and stop calls.
 	 */
 	private void runPause(boolean exitAtReset, boolean controlledWait) {
 
@@ -324,7 +339,7 @@ public abstract class ControlledRunnable implements Runnable {
 				paused = true;
 				fireControlledRunnableListener(
 						new ControlledRunnableEvent(this,
-								controlledWait ? ControlledRunnableEvent.STATETYPE.WAIT : ControlledRunnableEvent.STATETYPE.PAUSED));
+								controlledWait ? ControlledRunnableEvent.StateType.WAIT : ControlledRunnableEvent.StateType.PAUSE));
 
 				notifyWaitForSync();
 
@@ -363,7 +378,6 @@ public abstract class ControlledRunnable implements Runnable {
 						} else {
 							//Exit this pause because reset has been called
 							pauseRequested = false;
-							pauseDone(controlledWait);
 							break;
 						}
 					}
@@ -386,7 +400,7 @@ public abstract class ControlledRunnable implements Runnable {
 		paused = false;
 		fireControlledRunnableListener(
 				new ControlledRunnableEvent(this,
-						controlledWait ? ControlledRunnableEvent.STATETYPE.WAIT : ControlledRunnableEvent.STATETYPE.PAUSED));
+						controlledWait ? ControlledRunnableEvent.StateType.WAIT : ControlledRunnableEvent.StateType.PAUSE));
 
 		notifyWaitForSync();
 	}
@@ -453,9 +467,10 @@ public abstract class ControlledRunnable implements Runnable {
 	 */
 	public void stop() {
 		stopRequested = true;
+		pauseRequested = false;
 
 		fireControlledRunnableListener(
-				new ControlledRunnableEvent(this, ControlledRunnableEvent.STATETYPE.RUNNING));
+				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RUN));
 
 		// Notify the pausing. runPause will exit if stop requested
 		synchronized (PAUSESYNC) {
@@ -474,9 +489,10 @@ public abstract class ControlledRunnable implements Runnable {
 	 */
 	public void stop(boolean wait) {
 		stopRequested = true;
+		pauseRequested = false;
 
 		fireControlledRunnableListener(
-				new ControlledRunnableEvent(this, ControlledRunnableEvent.STATETYPE.RUNNING));
+				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RUN));
 
 		// Notify the pausing. runPause will exit if stop requested
 		synchronized (PAUSESYNC) {
@@ -543,7 +559,7 @@ public abstract class ControlledRunnable implements Runnable {
 		running = true;
 
 		fireControlledRunnableListener(
-				new ControlledRunnableEvent(this, ControlledRunnableEvent.STATETYPE.RUNNING));
+				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RUN));
 	}
 
 	/**
@@ -557,7 +573,7 @@ public abstract class ControlledRunnable implements Runnable {
 		stopped = true;
 
 		fireControlledRunnableListener(
-				new ControlledRunnableEvent(this, ControlledRunnableEvent.STATETYPE.RUNNING));
+				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RUN));
 
 		notifyWaitForSync();
 
@@ -592,7 +608,7 @@ public abstract class ControlledRunnable implements Runnable {
 		resetRequested = true;
 
 		fireControlledRunnableListener(
-				new ControlledRunnableEvent(this, ControlledRunnableEvent.STATETYPE.RESET));
+				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RESET));
 
 		if (paused) {
 			//Wake up if pausing. The runPause method will decide if it exits from
@@ -612,7 +628,7 @@ public abstract class ControlledRunnable implements Runnable {
 			resetRequested = false;
 
 			fireControlledRunnableListener(
-					new ControlledRunnableEvent(this, ControlledRunnableEvent.STATETYPE.RESET));
+					new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RESET));
 		}
 
 	}
@@ -635,119 +651,5 @@ public abstract class ControlledRunnable implements Runnable {
 		return resetRequested;
 	}
 
-
-	/**************************************************************************
-	 * 
-	 * 
-	 * 
-	 * @author Thomas Naeff (github.com/thnaeff)
-	 *
-	 */
-	public static class ControlledRunnableError extends Error {
-		private static final long serialVersionUID = -5317572305121925495L;
-
-		/**
-		 * 
-		 * 
-		 * @param message
-		 */
-		public ControlledRunnableError(String message) {
-			super(message);
-		}
-
-	}
-
-
-	/**************************************************************************
-	 * 
-	 * 
-	 * @author Thomas Naeff (github.com/thnaeff)
-	 *
-	 */
-	public static interface ControlledRunnableListener {
-
-		/**
-		 * 
-		 * @param e
-		 */
-		public void runnableStateChanged(ControlledRunnableEvent e);
-
-	}
-
-
-	/**************************************************************************
-	 * 
-	 * 
-	 * 
-	 * 
-	 * @author Thomas Naeff (github.com/thnaeff)
-	 *
-	 */
-	public static class ControlledRunnableEvent extends EventObject {
-		private static final long serialVersionUID = -7869931124296779698L;
-
-		public static enum STATETYPE {
-			/**
-			 * The running state has changed. Either running started, stop requested or
-			 * stopped.
-			 * 
-			 */
-			RUNNING("running"),
-
-			/**
-			 * The paused state has changed. Either pausing requested, paused or not paused
-			 * any more.
-			 * 
-			 */
-			PAUSED("paused"),
-
-			/**
-			 * The reset state has changed. Either reset requested or reset done.
-			 * 
-			 */
-			RESET("reset"),
-
-			/**
-			 * The waiting state has changed.
-			 * 
-			 */
-			WAIT("wait");
-
-			private String stateName = null;
-
-			/**
-			 * 
-			 */
-			private STATETYPE(String stateName) {
-				this.stateName = stateName;
-			}
-
-
-			@Override
-			public String toString() {
-				return stateName;
-			}
-		}
-
-		private final STATETYPE stateType;
-
-		/**
-		 * @param source
-		 */
-		public ControlledRunnableEvent(Object source, STATETYPE stateType) {
-			super(source);
-			this.stateType = stateType;
-		}
-
-		/**
-		 * Returns the state type which has changed
-		 * 
-		 * @return
-		 */
-		public STATETYPE getStateType() {
-			return stateType;
-		}
-
-	}
 
 }

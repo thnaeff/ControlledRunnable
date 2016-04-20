@@ -1,5 +1,5 @@
 /**
- *    Copyright 2014 Thomas Naeff (github.com/thnaeff)
+ *    Copyright 2016 Thomas Naeff (github.com/thnaeff)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package ch.thn.thread.controlledrunnable;
 
 
 /**
- * An abstract implementation of the {@link ControlledRunnable} which has
+ * An extension of the {@link ControlledRunnable} with 
  * a prepared run-method for many common thread uses. The run-method contains two
  * loops: one main loop which keeps the thread running until the runnable is stopped,
  * and one sub loop which is executed the number of times given with {@link #go(int, boolean)}.
@@ -117,7 +117,6 @@ public abstract class RepeatingRunnable extends ControlledRunnable {
 	 * Wakes the thread up from waiting and repeats infinitely (until reset, pause
 	 * or stop is called).
 	 * 
-	 * @param loops The number of repeats
 	 */
 	public void go() {
 		go(0, false);
