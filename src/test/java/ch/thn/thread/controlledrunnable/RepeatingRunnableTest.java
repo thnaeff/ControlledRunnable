@@ -14,6 +14,8 @@ import ch.thn.thread.controlledrunnable.ControlledRunnableEvent.StateTypeDetail;
  */
 public class RepeatingRunnableTest {
 	
+	private static int goCount = 0;
+	
 	
 	@Test
 	public void repeatingRunnableTest() throws Exception {
@@ -24,13 +26,32 @@ public class RepeatingRunnableTest {
 		Thread t = new Thread(repeatingRunnable);
 		t.start();
 		
-		waitAndGo(repeatingRunnable);
-		waitAndGo(repeatingRunnable);
+		Thread.sleep(1000);
+		
+		waitAndGo(repeatingRunnable, false);
+		waitAndGo(repeatingRunnable, false);
+		waitAndGo(repeatingRunnable, false);
+		waitAndGo(repeatingRunnable, false);
+		waitAndGo(repeatingRunnable, false);
+		waitAndGo(repeatingRunnable, false);
+		
+		waitAndGo(repeatingRunnable, true);
+		
+		waitAndGo(repeatingRunnable, false);
+		waitAndGo(repeatingRunnable, false);
+		waitAndGo(repeatingRunnable, false);
+		waitAndGo(repeatingRunnable, false);
+		waitAndGo(repeatingRunnable, false);
+		waitAndGo(repeatingRunnable, false);
+		
+		waitAndGo(repeatingRunnable, true);
+		waitAndGo(repeatingRunnable, true);
+		waitAndGo(repeatingRunnable, true);
 		
 		
 		
 		try {
-			Thread.sleep(3000);
+			Thread.sleep(1000);
 		} catch (InterruptedException e) {}
 		
 		System.out.println("Stopping");
@@ -46,15 +67,21 @@ public class RepeatingRunnableTest {
 	/**
 	 * 
 	 * 
+	 * 
 	 * @param repeatingRunnable
+	 * @param pause
 	 */
-	private void waitAndGo(RepeatingRunnableTestClass repeatingRunnable) {
+	private void waitAndGo(RepeatingRunnableTestClass repeatingRunnable, boolean pause) {
 		
-		try {
-			Thread.sleep(2000);
-		} catch (InterruptedException e) {}
+		if (pause) {
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {}
+		}
 		
-		System.out.println("Go");
+		goCount++;
+		
+		System.out.println("Go " + goCount);
 		
 		repeatingRunnable.go();
 		
@@ -76,7 +103,8 @@ public class RepeatingRunnableTest {
 			
 			StateTypeDetail stateTypeDetail = e.getStateTypeDetail();
 			
-			System.out.println("# Batch processor state changed: " + e.getStateType() + " -> " + stateTypeDetail);
+			System.out.println("# Batch processor state changed: " 
+			+ e.getStateType() + " -> " + stateTypeDetail + " (" + e.getLocationIdentifier() + ")");
 			
 			
 		}

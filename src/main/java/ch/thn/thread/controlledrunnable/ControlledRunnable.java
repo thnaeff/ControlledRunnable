@@ -255,14 +255,12 @@ public abstract class ControlledRunnable implements Runnable {
 		if (stopped) {
 			throw new ControlledRunnableError("The pause state of this runnable can not be changed, because it has already been stopped.");
 		}
-
+		
 		//Request pause
 		pauseRequested = pause;
 
-		if (pauseRequested) {
-			fireControlledRunnableListener(
-					new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.PAUSE));
-		}
+		fireControlledRunnableListener(
+				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.PAUSE, 1));
 
 		if (!pause && paused) {
 			//No pause any more (if currently paused)
@@ -339,7 +337,7 @@ public abstract class ControlledRunnable implements Runnable {
 				paused = true;
 				fireControlledRunnableListener(
 						new ControlledRunnableEvent(this,
-								controlledWait ? ControlledRunnableEvent.StateType.WAIT : ControlledRunnableEvent.StateType.PAUSE));
+								controlledWait ? ControlledRunnableEvent.StateType.WAIT : ControlledRunnableEvent.StateType.PAUSE, 2));
 
 				notifyWaitForSync();
 
@@ -400,7 +398,7 @@ public abstract class ControlledRunnable implements Runnable {
 		paused = false;
 		fireControlledRunnableListener(
 				new ControlledRunnableEvent(this,
-						controlledWait ? ControlledRunnableEvent.StateType.WAIT : ControlledRunnableEvent.StateType.PAUSE));
+						controlledWait ? ControlledRunnableEvent.StateType.WAIT : ControlledRunnableEvent.StateType.PAUSE, 3));
 
 		notifyWaitForSync();
 	}
@@ -424,6 +422,18 @@ public abstract class ControlledRunnable implements Runnable {
 	 */
 	public boolean willPause() {
 		return pauseRequested && !paused;
+	}
+	
+	/**
+	 * A flag which is set when the runnable has been requested to un-pause (leave the pause 
+	 * state with {@link #pause(boolean) or {@link #pause(boolean, boolean)}) but it is still 
+	 * in the pause state
+	 * 
+	 * 
+	 * @return
+	 */
+	public boolean willUnPause() {
+		return ! pauseRequested && paused;
 	}
 
 	// ========================================================================
@@ -470,7 +480,7 @@ public abstract class ControlledRunnable implements Runnable {
 		pauseRequested = false;
 
 		fireControlledRunnableListener(
-				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RUN));
+				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RUN, 4));
 
 		// Notify the pausing. runPause will exit if stop requested
 		synchronized (PAUSESYNC) {
@@ -492,7 +502,7 @@ public abstract class ControlledRunnable implements Runnable {
 		pauseRequested = false;
 
 		fireControlledRunnableListener(
-				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RUN));
+				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RUN, 5));
 
 		// Notify the pausing. runPause will exit if stop requested
 		synchronized (PAUSESYNC) {
@@ -559,7 +569,7 @@ public abstract class ControlledRunnable implements Runnable {
 		running = true;
 
 		fireControlledRunnableListener(
-				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RUN));
+				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RUN, 6));
 	}
 
 	/**
@@ -573,7 +583,7 @@ public abstract class ControlledRunnable implements Runnable {
 		stopped = true;
 
 		fireControlledRunnableListener(
-				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RUN));
+				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RUN, 7));
 
 		notifyWaitForSync();
 
@@ -593,6 +603,8 @@ public abstract class ControlledRunnable implements Runnable {
 			WAITFORSYNC.notify();
 		}
 	}
+	
+	// ========================================================================
 
 	/**
 	 * Requests the runnable to reset.<br />
@@ -608,7 +620,7 @@ public abstract class ControlledRunnable implements Runnable {
 		resetRequested = true;
 
 		fireControlledRunnableListener(
-				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RESET));
+				new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RESET, 8));
 
 		if (paused) {
 			//Wake up if pausing. The runPause method will decide if it exits from
@@ -628,7 +640,7 @@ public abstract class ControlledRunnable implements Runnable {
 			resetRequested = false;
 
 			fireControlledRunnableListener(
-					new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RESET));
+					new ControlledRunnableEvent(this, ControlledRunnableEvent.StateType.RESET, 9));
 		}
 
 	}

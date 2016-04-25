@@ -9,11 +9,27 @@ import ch.thn.thread.controlledrunnable.RepeatingRunnable;
  *
  */
 public class RepeatingRunnableTestClass extends RepeatingRunnable {
+	
+	private static int runCount = 0;
+	
+	private Object monitor = new Object();
 
 	@Override
 	public boolean execute() {
 		
-		System.out.println("RepeatingRunnable execute()");
+		runCount++;
+		int runCountLocal = runCount;
+		
+		System.out.println(RepeatingRunnableTestClass.class.getSimpleName() + " execute() started: " + runCountLocal);
+		
+		synchronized (monitor) {
+			try {
+				monitor.wait(1000);
+			} catch (InterruptedException e) {}
+		}
+		
+		
+		System.out.println(RepeatingRunnableTestClass.class.getSimpleName() + " execute() ended: " + runCountLocal);
 		
 		//Pause after
 		return true;

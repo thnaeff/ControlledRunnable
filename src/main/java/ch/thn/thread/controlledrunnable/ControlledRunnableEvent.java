@@ -66,17 +66,26 @@ public class ControlledRunnableEvent extends EventObject {
 	 *
 	 */
 	public static enum StateTypeDetail {
-		PAUSED, WILL_PAUSE, UN_PAUSE, WILL_STOP, RUNNING, STOPPED, NOT_RUNNING, WILL_RESET, RESET, WAIT;
+		PAUSED, WILL_PAUSE, UN_PAUSED, WILL_UN_PAUSE, 
+		WILL_STOP, RUNNING, STOPPED, NOT_RUNNING, 
+		WILL_RESET, RESET, 
+		WAIT;
 	}
 
 	private final StateType stateType;
+	private final int locationIdentifier;
 
 	/**
+	 * 
+	 * 
 	 * @param source
+	 * @param stateType
+	 * @param locationIdentifier
 	 */
-	public ControlledRunnableEvent(Object source, StateType stateType) {
+	public ControlledRunnableEvent(Object source, StateType stateType, int locationIdentifier) {
 		super(source);
 		this.stateType = stateType;
+		this.locationIdentifier = locationIdentifier;
 	}
 
 	/**
@@ -89,6 +98,15 @@ public class ControlledRunnableEvent extends EventObject {
 	}
 	
 	/**
+	 * Internal use only!
+	 * 
+	 * @return
+	 */
+	public int getLocationIdentifier() {
+		return locationIdentifier;
+	}
+	
+	/**
 	 * Returns the detailed state of the source runnable at the moment of this call
 	 * 
 	 * @return
@@ -98,12 +116,14 @@ public class ControlledRunnableEvent extends EventObject {
 		
 		switch (stateType) {
 			case PAUSE:
-				if (runnable.isPaused()) {
-					return StateTypeDetail.PAUSED;
-				} else if (runnable.willPause()) {
+				if (runnable.willPause()) {
 					return StateTypeDetail.WILL_PAUSE;
+				} else if (runnable.willUnPause()) {
+					return StateTypeDetail.WILL_UN_PAUSE;
+				} else if (runnable.isPaused()) {
+					return StateTypeDetail.PAUSED;
 				} else {
-					return StateTypeDetail.UN_PAUSE;
+					return StateTypeDetail.UN_PAUSED;
 				}
 			case RUN:
 				if (runnable.willStop()) {

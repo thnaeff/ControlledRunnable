@@ -75,9 +75,11 @@ package ch.thn.thread.controlledrunnable;
 public abstract class RepeatingRunnable extends ControlledRunnable {
 
 
-	private int loops = 0;
+	private volatile int loops = 0;
 
-	private boolean stopWhenDone = false;
+	private volatile boolean stopWhenDone = false;
+	private volatile boolean looping = false;
+	private volatile boolean goCalled = false;
 
 	/**
 	 * 
@@ -90,22 +92,32 @@ public abstract class RepeatingRunnable extends ControlledRunnable {
 
 	/**
 	 * Wakes the thread up from waiting and repeats with the given number of loops.
-	 * If stopWhenDone=true, this thread will be ended once all repeats are done.
+	 * If <code>stopWhenDone=true</code>, this thread will be ended once all repeats are done.<br />
+	 * If the runnable is already looping, the go call will reset the runnable and start 
+	 * with the new values passed as parameters.
 	 * 
 	 * @param loops The number of repeats
 	 * @param stopWhenDone Stops the thread when the given number of loops are done.
 	 */
-	public void go(int loops, boolean stopWhenDone) {
+	public synchronized void go(int loops, boolean stopWhenDone) {
 		this.loops = loops;
 		this.stopWhenDone = stopWhenDone;
 
-		reset();
-		pause(false);
-
+		//Do not reset and un-pause when already looping and if go has been called already
+		//to start a looping
+		if (! looping && ! goCalled && isRunning()) {
+			this.goCalled = true;
+			
+			reset();
+			pause(false);
+		}
+		
 	}
 
 	/**
-	 * Wakes the thread up from waiting and repeats with the given number of loops.
+	 * Wakes the thread up from waiting and repeats with the given number of loops.<br />
+	 * If the runnable is already looping, the go call will reset the runnable and start 
+	 * with the new values passed as parameters.
 	 * 
 	 * @param loops The number of repeats
 	 */
@@ -115,7 +127,9 @@ public abstract class RepeatingRunnable extends ControlledRunnable {
 
 	/**
 	 * Wakes the thread up from waiting and repeats infinitely (until reset, pause
-	 * or stop is called).
+	 * or stop is called).<br />
+	 * If the runnable is already looping, the go call will reset the runnable and restart 
+	 * the infinite loop.
 	 * 
 	 */
 	public void go() {
@@ -138,20 +152,27 @@ public abstract class RepeatingRunnable extends ControlledRunnable {
 		runStart();
 
 		//Main loop. Keeping the thread running
-		while (!isStopRequested()) {
+		while (! isStopRequested()) {
 			runReset();
 			runPause(false);
+			
+			if (isResetRequested()) {
+				//Do the reset stuff just in case the reset() call has 
+				//been made during the runPause
+				runReset();
+			}
 
 			if (isStopRequested()) {
 				break;
 			}
 
 			int currentLoop = 0;
-
+			looping = true;
+			goCalled = false;
+			
 			//Loop repeats. Zero loops means infinite repeats.
 			while ((currentLoop < loops || loops == 0)
-					&& !isResetRequested() && !isStopRequested()) {
-
+					&& ! isResetRequested() && ! isStopRequested()) {
 
 				if (execute()) {
 					//Done.
@@ -164,14 +185,16 @@ public abstract class RepeatingRunnable extends ControlledRunnable {
 
 				currentLoop++;
 
-			}	// End loop repeats
-
+			}	// End of loop repeats
+			
+			looping = false;
+			
 			if (isStopRequested()
-					|| stopWhenDone && !isResetRequested()) {
+					|| stopWhenDone && ! isResetRequested()) {
 				break;
 			}
 
-			if (!isResetRequested()) {
+			if (! goCalled && ! isResetRequested()) {
 				//Done executing. Pause at the next runPause
 				pause(true);
 			}
