@@ -48,18 +48,22 @@ public class OrderedBlockingBuffer<K> {
 	 */
 	private int maxBufferSize = 0;
 	
-	private int currentIndex = 0;
+	private long currentIndex = 0;
 	
 	private volatile boolean waitingForEmptyBuffer = false;
 	private volatile boolean waitingForSpaceInBuffer = false;	
 	private volatile boolean end = false;
+
 	
 	/**
-	 * 
+	 * Creates a new {@link OrderedBlockingBuffer} with a user defined start index. 
+	 * The first element it can retrieve with {@link #take()} is an element with 
+	 * that user defined start index, which means that such an element has to exist.
 	 * 
 	 * @param maxBufferSize
+	 * @param startIndex The index of the first element to look for.
 	 */
-	public OrderedBlockingBuffer(int maxBufferSize) {
+	public OrderedBlockingBuffer(int maxBufferSize, int startIndex) {
 		this.maxBufferSize = maxBufferSize;
 		
 		bufferMap = new HashMap<Long, K>(maxBufferSize);
@@ -67,10 +71,40 @@ public class OrderedBlockingBuffer<K> {
 	}
 	
 	/**
+	 * Creates a new {@link OrderedBlockingBuffer} with a start index of <code>0</code>. 
+	 * The first element it can retrieve with {@link #take()} is an element with 
+	 * index <code>0</code>, which means that such an element has to exist.
+	 * 
+	 * @param maxBufferSize
+	 */
+	public OrderedBlockingBuffer(int maxBufferSize) {
+		this(maxBufferSize, 0);
+	}
+	
+	/**
+	 * Returns <code>true</code> if the element is currently in the buffer
+	 * 
+	 * @param element
+	 * @return
+	 */
+	public boolean containsElement(K element) {
+		return bufferMap.containsValue(element);
+	}
+	
+	/**
+	 * Returns <code>true</code> if an element with the given index is currently in the buffer
+	 * 
+	 * @param elementIndex
+	 * @return
+	 */
+	public boolean containsIndex(long elementIndex) {
+		return bufferMap.containsKey(elementIndex);
+	}
+	
+	/**
 	 * Adds an element to the map. Blocks if the buffer is full and data is being written out. 
 	 * Continues adding element if the buffer is full but the next expected element is not yet in 
 	 * the buffer.
-	 * The first expected element has the index 0.
 	 * 
 	 * @param elementIndex
 	 * @param element
@@ -154,12 +188,25 @@ public class OrderedBlockingBuffer<K> {
 	 * 
 	 * @return
 	 */
-	public int nextElementIndex() {
+	public long nextElementIndex() {
 		return currentIndex;
 	}
 	
 	/**
-	 * Returns the current buffer level
+	 * Checks if the next item in the buffer is available. The next item is defined by the 
+	 * element index, therefore even though there are elements in the buffer, the next item 
+	 * might or might not be available.
+	 * 
+	 * @return
+	 */
+	public boolean isNextAvailable() {
+		synchronized (bufferMap) {
+			return bufferMap.containsKey(currentIndex);
+		}
+	}
+	
+	/**
+	 * Returns the current buffer level (the number of items in the buffer)
 	 *  
 	 * @return
 	 */
@@ -167,6 +214,25 @@ public class OrderedBlockingBuffer<K> {
 		synchronized (bufferMap) {
 			return bufferMap.size();
 		}
+	}
+	
+	/**
+	 * Resets/clears the buffer. Sets the current index to the given number. The current index 
+	 * defines the element index of the item which is next in the buffer.
+	 * 
+	 * @param currentIndex
+	 */
+	public void reset(long currentIndex) {
+		bufferMap.clear();
+		this.currentIndex = currentIndex;
+	}
+	
+	/**
+	 * Resets/clears the buffer. The next item the buffer expects has an index of 0.
+	 * 
+	 */
+	public void reset() {
+		reset(0);
 	}
 	
 	/**
@@ -191,17 +257,31 @@ public class OrderedBlockingBuffer<K> {
 	public K take(long timeout, TimeUnit unit) {
 		K element = null;
 		
+		long waitTime = (unit == null ? 0 : unit.toMillis(timeout));
+		long startWaitTime = 0;
+		if (waitTime > 0) {
+			startWaitTime = System.currentTimeMillis();
+		}
+		
 		synchronized (bufferMap) {
 			//Wait as long as next line is not in the buffer
 			while (! bufferMap.containsKey(currentIndex)) {
-				//Notify any thread which is waiting to add elements that the 
-				//next element is needed, because it is not in the buffer yet.
-				bufferMap.notifyAll();
 				
 				try {
-					bufferMap.wait(unit == null ? 0 : unit.toMillis(timeout));
+					bufferMap.wait(waitTime);
 				} catch (InterruptedException e) {
 					return null;
+				}
+				
+				if (waitTime > 0) {
+					long waitedTime = System.currentTimeMillis() - startWaitTime;
+					//Re-calculate how long is left to wait
+					waitTime -= waitedTime;
+					
+					//Wait time is up. Element was not available until now so just return null
+					if (waitTime <= 0) {
+						return null;
+					}
 				}
 				
 				if (end) {
