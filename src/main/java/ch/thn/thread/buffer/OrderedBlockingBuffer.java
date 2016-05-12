@@ -42,13 +42,10 @@ import java.util.concurrent.TimeUnit;
 public class OrderedBlockingBuffer<K> {
 		
 	private Map<Long, K> bufferMap = null;
-		
-	/**
-	 * The buffer size.
-	 */
-	private int maxBufferSize = 0;
 	
-	private long currentIndex = 0;
+	private final int maxBufferSize;
+	
+	private volatile long currentIndex = 0;
 	
 	private volatile boolean waitingForEmptyBuffer = false;
 	private volatile boolean waitingForSpaceInBuffer = false;	
@@ -102,15 +99,18 @@ public class OrderedBlockingBuffer<K> {
 	}
 	
 	/**
-	 * Adds an element to the map. Blocks if the buffer is full and data is being written out. 
-	 * Continues adding element if the buffer is full but the next expected element is not yet in 
-	 * the buffer.
+	 * Determines if the buffer is full and if the attempt of adding an element with the given 
+	 * index using {@link #put(long, Object)} or {@link #put(long, Object, long, TimeUnit)} 
+	 * will block.<br />
+	 * See {@link OrderedBlockingBuffer} for more information about how the 
+	 * buffer works.
 	 * 
 	 * @param elementIndex
-	 * @param element
+	 * @return <code>true</code> if the buffer is full and adding an element with the given 
+	 * index will block. <code>false</code> if there is space in the buffer (or the next element 
+	 * is not yet in the buffer) and adding an element with the given index will not block.
 	 */
-	public void put(long elementIndex, K element) {
-		
+	public boolean willBlock(long elementIndex) {
 		int currentBufferSize = 0;
 		synchronized (bufferMap) {
 			currentBufferSize = bufferMap.size();
@@ -121,20 +121,55 @@ public class OrderedBlockingBuffer<K> {
 
 			boolean bufferContainsNext = false;
 			synchronized (bufferMap) {
-				//If the next one will just be added or the next one is already in the ma
+				//If the next one will just be added or the next one is already in the map
 				bufferContainsNext = elementIndex == currentIndex || bufferMap.containsKey(currentIndex);
 			}
 			
 			if (bufferContainsNext) {
-
-				//Buffer is full and the next element is already in the buffer. 
-				//Wait until retrieving has caught up and there is space available.
-				waitForSpaceInBuffer(elementIndex);
+				return true;
 			}// else {
 				//The next element has not appeared in the buffer yet. Keep 
 				//adding elements until the next element is found.
 			//}
 
+		}
+		
+		return false;
+	}
+	
+	/**
+	 * Adds an element to the map. Blocks if the buffer is full. 
+	 * Continues adding element if the buffer is full but the next expected element is not yet in 
+	 * the buffer.
+	 * 
+	 * @param elementIndex
+	 * @param element
+	 * @return <code>true</code> if the element has been added to the buffer, <code>false</code> if the element has 
+	 * not been added due to timeout (the timeout is set to infinite with this method call, use 
+	 * {@link #put(long, Object, long, TimeUnit)} for defining the timeout).
+	 */
+	public boolean put(long elementIndex, K element) {
+		return put(elementIndex, element, 0, null);
+	}
+	
+	/**
+	 * Adds an element to the map. Blocks the given time if the buffer is full. 
+	 * Continues adding element if the buffer is full but the next expected element is not yet in 
+	 * the buffer.
+	 * 
+	 * @param elementIndex
+	 * @param element
+	 * @param waitTime
+	 * @param waitTimeUnit
+	 * @return <code>true</code> if the element has been added to the buffer, <code>false</code> if the element has 
+	 * not been added due to timeout.
+	 */
+	public boolean put(long elementIndex, K element, long waitTime, TimeUnit waitTimeUnit) {
+		
+		if (willBlock(elementIndex)) {
+			if (! waitForSpaceInBuffer(elementIndex, waitTime, waitTimeUnit)) {
+				return false;
+			}
 		}
 		
 		synchronized (bufferMap) {
@@ -145,6 +180,7 @@ public class OrderedBlockingBuffer<K> {
 			}
 		}
 		
+		return true;
 	}
 	
 	/**
@@ -153,25 +189,48 @@ public class OrderedBlockingBuffer<K> {
 	 * is not in the buffer yet.
 	 * 
 	 * @param elementIndex
+	 * @param timeout
+	 * @param unit
+	 * @return <code>true</code> if it can continue, <code>false</code> if the waiting time expired 
 	 */
-	private void waitForSpaceInBuffer(long elementIndex) {
+	private boolean waitForSpaceInBuffer(long elementIndex, long timeout, TimeUnit unit) {
+		
+		long waitTime = (unit == null ? 0 : unit.toMillis(timeout));
+		long startWaitTime = 0;
+		if (waitTime > 0) {
+			startWaitTime = System.currentTimeMillis();
+		}
 		
 		synchronized (bufferMap) {
+			
 			while (bufferMap.size() >= maxBufferSize) {
 				//The buffer is full
 				if (elementIndex == currentIndex || ! bufferMap.containsKey(currentIndex)) {
 					//Do not wait if the new element is the next one which will be retrieved.
-					break;
+					waitingForSpaceInBuffer = false;
+					return true;
 				} else {
 					//Otherwise, wait until there is space in the buffer again
 					
 					waitingForSpaceInBuffer = true;
 					
 					try {
-						bufferMap.wait();
+						bufferMap.wait(waitTime);
 					} catch (InterruptedException e) { break; }
 					
-					waitingForSpaceInBuffer = false;
+					
+					if (waitTime > 0) {
+						long waitedTime = System.currentTimeMillis() - startWaitTime;
+						//Re-calculate how long is left to wait
+						waitTime -= waitedTime;
+						
+						//Wait time is up. Element/space was not available until now so just return
+						if (waitTime <= 0) {
+							waitingForSpaceInBuffer = false;
+							return false;
+						}
+					}
+					
 				}
 				
 				if (end) {
@@ -179,8 +238,12 @@ public class OrderedBlockingBuffer<K> {
 				}
 				
 			}
+			
+			waitingForSpaceInBuffer = false;
+			
 		}
 	
+		return true;
 	}
 	
 	/**
@@ -289,6 +352,7 @@ public class OrderedBlockingBuffer<K> {
 				}
 			}
 			
+			//Take next element and remove it from the buffer
 			element = bufferMap.remove(currentIndex);
 		}
 		
