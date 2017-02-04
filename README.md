@@ -1,6 +1,16 @@
 # ControlledRunnable
 **A framework for controlling a java.lang.Runnable. Implements functionality for pause, reset and stop**
 
+---
+
+
+[![License](http://img.shields.io/badge/License-Apache v2.0-802879.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
+[![Java Version](http://img.shields.io/badge/Java-1.6%2B-2E6CB8.svg)](https://java.com)
+[![Apache Maven ready](http://img.shields.io/badge/Apache Maven ready-3.3.9%2B-FF6804.svg)](https://maven.apache.org/)
+
+
+---
+
 
 The `ControlledRunnable` implements `java.lang.Runnable` and provides functionality to pause, reset and stop a running process. Those procedures are usually the same for any running process, the process is requested to pause for example, so the program has to implement certain points in its flow where the process can be paused. Once the process is paused, it has to react to a request to continue running. The pausing of the process and resuming it is implemented in `ControlledRunnable` and can be used within a program flow with just one method call. The same applies to the reset and stop functionality.
 
@@ -168,4 +178,26 @@ the execute() method is called as many times as specified in the go() call.
 ```
 
 
+---
+
+
+<img src="http://maven.apache.org/images/maven-logo-black-on-white.png" alt="Built with Maven" width="150">
+
+This project can be built with Maven
+
+Maven command:
+```
+$ mvn clean install
+```
+
+pom.xml entry in your project:
+```
+<dependency>
+	<groupId>ch.thn.thread</groupId>
+	<artifactId>controlledrunnable</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+</dependency>
+```
+
+---
 
