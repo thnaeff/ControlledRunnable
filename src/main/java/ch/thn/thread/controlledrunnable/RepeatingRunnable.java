@@ -1,40 +1,37 @@
 /**
- *    Copyright 2016 Thomas Naeff (github.com/thnaeff)
+ * Copyright 2016 Thomas Naeff (github.com/thnaeff)
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
  * 
  */
 package ch.thn.thread.controlledrunnable;
 
 
 /**
- * An extension of the {@link ControlledRunnable} with 
- * a prepared run-method for many common thread uses. The run-method contains two
- * loops: one main loop which keeps the thread running until the runnable is stopped,
- * and one sub loop which is executed the number of times given with {@link #go(int, boolean)}.
- * The sub loop also implements pausing, which means the sub loop is paused right
- * after {@link #execute()} if {@link #pause(boolean)} with <code>true</code> is called.<br />
+ * An extension of the {@link ControlledRunnable} with a prepared run-method for many common thread
+ * uses. The run-method contains two loops: one main loop which keeps the thread running until the
+ * runnable is stopped, and one sub loop which is executed the number of times given with
+ * {@link #go(int, boolean)}. The sub loop also implements pausing, which means the sub loop is
+ * paused right after {@link #execute()} if {@link #pause(boolean)} with <code>true</code> is
+ * called.<br />
  * <br />
- * {@link #execute()} is called in the sub loop. {@link #execute()} is an abstract method
- * which has to be implemented by the extended class.<br />
- * As for the run method in {@link ControlledRunnable}, the {@link #execute()} method
- * in {@link RepeatingRunnable} can
- * contain any methods like {@link #runStart()}, {@link #runEnd()},
- * {@link #runPause(boolean, boolean)}, {@link #isResetRequested()}, {@link #isPauseRequested()}
- * or {@link #isStopRequested()} etc. to further control the runnable.
- * <br />
+ * {@link #execute()} is called in the sub loop. {@link #execute()} is an abstract method which has
+ * to be implemented by the extended class.<br />
+ * As for the run method in {@link ControlledRunnable}, the {@link #execute()} method in
+ * {@link RepeatingRunnable} can contain any methods like {@link #runStart()}, {@link #runEnd()},
+ * {@link #runPause(boolean, boolean)}, {@link #isResetRequested()}, {@link #isPauseRequested()} or
+ * {@link #isStopRequested()} etc. to further control the runnable. <br />
  * <br />
  * Here is an abstract simplified example how the run method looks like:
+ * 
  * <pre>
  * run () {
  * 	main_thread_loop (until stop requested) {
@@ -54,19 +51,18 @@ package ch.thn.thread.controlledrunnable;
  * 
  * }
  * </pre>
+ * 
  * After the thread is started, it starts the run method and waits at
- * <code>wait_for_loop_command</code>. When {@link #go(int, boolean)} is called,
- * the thread continues and starts the <code>sub_loop</code> (either infinitely or
- * the number of given loops). The return value of the {@link #execute()} method
- * defines if the looping is done or if it should continue. If {@link #pause(boolean)}
- * is called within the {@link #execute()} method, the thread is paused right after
- * executing. The sub loop is exited if stop or reset are requested. The main loop
- * is only exited if stop is requested (which ends the run method and therefore the
+ * <code>wait_for_loop_command</code>. When {@link #go(int, boolean)} is called, the thread
+ * continues and starts the <code>sub_loop</code> (either infinitely or the number of given loops).
+ * The return value of the {@link #execute()} method defines if the looping is done or if it should
+ * continue. If {@link #pause(boolean)} is called within the {@link #execute()} method, the thread
+ * is paused right after executing. The sub loop is exited if stop or reset are requested. The main
+ * loop is only exited if stop is requested (which ends the run method and therefore the
  * thread).<br />
- * Note: If pause/reset/stop has to be controlled more finely, it has to be implemented
- * in the {@link #execute()} method (e.g. with {@link #isResetRequested()}, {@link #isPauseRequested()}
- * and {@link #isStopRequested()}).
- * <br />
+ * Note: If pause/reset/stop has to be controlled more finely, it has to be implemented in the
+ * {@link #execute()} method (e.g. with {@link #isResetRequested()}, {@link #isPauseRequested()} and
+ * {@link #isStopRequested()}). <br />
  * 
  * 
  * @author Thomas Naeff (github.com/thnaeff)
@@ -75,133 +71,131 @@ package ch.thn.thread.controlledrunnable;
 public abstract class RepeatingRunnable extends ControlledRunnable {
 
 
-	private volatile int loops = 0;
+  private volatile int loops = 0;
 
-	private volatile boolean stopWhenDone = false;
-	private volatile boolean looping = false;
-	private volatile boolean goCalled = false;
+  private volatile boolean stopWhenDone = false;
+  private volatile boolean looping = false;
+  private volatile boolean goCalled = false;
 
-	/**
-	 * 
-	 * 
-	 */
-	protected RepeatingRunnable() {
-		super(true, true);
-	}
-
-
-	/**
-	 * Wakes the thread up from waiting and repeats with the given number of loops.
-	 * If <code>stopWhenDone=true</code>, this thread will be ended once all repeats are done.<br />
-	 * If the runnable is already looping, the go call will reset the runnable and start 
-	 * with the new values passed as parameters.
-	 * 
-	 * @param loops The number of repeats
-	 * @param stopWhenDone Stops the thread when the given number of loops are done.
-	 */
-	public synchronized void go(int loops, boolean stopWhenDone) {
-		this.loops = loops;
-		this.stopWhenDone = stopWhenDone;
-
-		//Do not reset and un-pause when already looping and if go has been called already
-		//to start a looping
-		if (! looping && ! goCalled && isRunning()) {
-			this.goCalled = true;
-			
-			reset();
-			pause(false);
-		}
-		
-	}
-
-	/**
-	 * Wakes the thread up from waiting and repeats with the given number of loops.<br />
-	 * If the runnable is already looping, the go call will reset the runnable and start 
-	 * with the new values passed as parameters.
-	 * 
-	 * @param loops The number of repeats
-	 */
-	public void go(int loops) {
-		go(loops, false);
-	}
-
-	/**
-	 * Wakes the thread up from waiting and repeats infinitely (until reset, pause
-	 * or stop is called).<br />
-	 * If the runnable is already looping, the go call will reset the runnable and restart 
-	 * the infinite loop.
-	 * 
-	 */
-	public void go() {
-		go(0, false);
-	}
+  /**
+   * 
+   * 
+   */
+  protected RepeatingRunnable() {
+    super(true, true);
+  }
 
 
-	/**
-	 * Executes the thread code.
-	 * 
-	 * @return If execution is done, yes (<code>true</code>) or no (<code>false</code>).
-	 * If yes, the sub loop ends and the thread goes into waiting state. If no,
-	 * the sub loop continues calling {@link #execute()}.
-	 */
-	public abstract boolean execute();
+  /**
+   * Wakes the thread up from waiting and repeats with the given number of loops. If
+   * <code>stopWhenDone=true</code>, this thread will be ended once all repeats are done.<br />
+   * If the runnable is already looping, the go call will reset the runnable and start with the new
+   * values passed as parameters.
+   * 
+   * @param loops The number of repeats
+   * @param stopWhenDone Stops the thread when the given number of loops are done.
+   */
+  public synchronized void go(int loops, boolean stopWhenDone) {
+    this.loops = loops;
+    this.stopWhenDone = stopWhenDone;
+
+    // Do not reset and un-pause when already looping and if go has been called already
+    // to start a looping
+    if (!looping && !goCalled && isRunning()) {
+      this.goCalled = true;
+
+      reset();
+      pause(false);
+    }
+
+  }
+
+  /**
+   * Wakes the thread up from waiting and repeats with the given number of loops.<br />
+   * If the runnable is already looping, the go call will reset the runnable and start with the new
+   * values passed as parameters.
+   * 
+   * @param loops The number of repeats
+   */
+  public void go(int loops) {
+    go(loops, false);
+  }
+
+  /**
+   * Wakes the thread up from waiting and repeats infinitely (until reset, pause or stop is
+   * called).<br />
+   * If the runnable is already looping, the go call will reset the runnable and restart the
+   * infinite loop.
+   * 
+   */
+  public void go() {
+    go(0, false);
+  }
 
 
-	@Override
-	public void run() {
-		runStart();
+  /**
+   * Executes the thread code.
+   * 
+   * @return If execution is done, yes (<code>true</code>) or no (<code>false</code>). If yes, the
+   *         sub loop ends and the thread goes into waiting state. If no, the sub loop continues
+   *         calling {@link #execute()}.
+   */
+  public abstract boolean execute();
 
-		//Main loop. Keeping the thread running
-		while (! isStopRequested()) {
-			runReset();
-			runPause(false);
-			
-			if (isResetRequested()) {
-				//Do the reset stuff just in case the reset() call has 
-				//been made during the runPause
-				runReset();
-			}
 
-			if (isStopRequested()) {
-				break;
-			}
+  @Override
+  public void run() {
+    runStart();
 
-			int currentLoop = 0;
-			looping = true;
-			goCalled = false;
-			
-			//Loop repeats. Zero loops means infinite repeats.
-			while ((currentLoop < loops || loops == 0)
-					&& ! isResetRequested() && ! isStopRequested()) {
+    // Main loop. Keeping the thread running
+    while (!isStopRequested()) {
+      runReset();
+      runPause(false);
 
-				if (execute()) {
-					//Done.
-					break;
-				}
+      if (isResetRequested()) {
+        // Do the reset stuff just in case the reset() call has
+        // been made during the runPause
+        runReset();
+      }
 
-				if (isPauseRequested()) {
-					runPause(true);
-				}
+      if (isStopRequested()) {
+        break;
+      }
 
-				currentLoop++;
+      int currentLoop = 0;
+      looping = true;
+      goCalled = false;
 
-			}	// End of loop repeats
-			
-			looping = false;
-			
-			if (isStopRequested()
-					|| stopWhenDone && ! isResetRequested()) {
-				break;
-			}
+      // Loop repeats. Zero loops means infinite repeats.
+      while ((currentLoop < loops || loops == 0) && !isResetRequested() && !isStopRequested()) {
 
-			if (! goCalled && ! isResetRequested()) {
-				//Done executing. Pause at the next runPause
-				pause(true);
-			}
+        if (execute()) {
+          // Done.
+          break;
+        }
 
-		}	// End thread main loop
+        if (isPauseRequested()) {
+          runPause(true);
+        }
 
-		runEnd();
-	}
+        currentLoop++;
+
+      } // End of loop repeats
+
+      looping = false;
+
+      if (isStopRequested() || stopWhenDone && !isResetRequested()) {
+        break;
+      }
+
+      if (!goCalled && !isResetRequested()) {
+        // Done executing. Pause at the next runPause
+        pause(true);
+      }
+
+    } // End thread main loop
+
+    runEnd();
+  }
 
 }
